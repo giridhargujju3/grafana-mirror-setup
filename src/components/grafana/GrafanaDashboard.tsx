@@ -1,5 +1,9 @@
 import { GrafanaSidebar } from "./GrafanaSidebar";
 import { GrafanaHeader } from "./GrafanaHeader";
+import { SearchModal } from "./modals/SearchModal";
+import { ShareModal } from "./modals/ShareModal";
+import { SettingsModal } from "./modals/SettingsModal";
+import { AddPanelModal } from "./modals/AddPanelModal";
 import { TimeSeriesPanel } from "./panels/TimeSeriesPanel";
 import { StatPanel } from "./panels/StatPanel";
 import { GaugePanel } from "./panels/GaugePanel";
@@ -7,6 +11,8 @@ import { BarChartPanel } from "./panels/BarChartPanel";
 import { TablePanel } from "./panels/TablePanel";
 import { AlertListPanel } from "./panels/AlertListPanel";
 import { LogsPanel } from "./panels/LogsPanel";
+import { DashboardProvider, useDashboard } from "@/contexts/DashboardContext";
+import { cn } from "@/lib/utils";
 
 // Generate sample data
 const generateTimeSeriesData = () => {
@@ -60,13 +66,15 @@ const logs = [
   { timestamp: "14:32:38", level: "info" as const, message: "Health check passed", labels: { service: "monitor" } },
 ];
 
-export function GrafanaDashboard() {
+function DashboardContent() {
+  const { isRefreshing } = useDashboard();
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <GrafanaSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <GrafanaHeader />
-        <main className="flex-1 overflow-auto p-4">
+        <main className={cn("flex-1 overflow-auto p-4", isRefreshing && "opacity-60 pointer-events-none")}>
           <div className="grid grid-cols-12 gap-4 auto-rows-min">
             {/* Top row - Stats */}
             <div className="col-span-12 md:col-span-6 lg:col-span-3 h-36">
@@ -206,6 +214,20 @@ export function GrafanaDashboard() {
           </div>
         </main>
       </div>
+      
+      {/* Modals */}
+      <SearchModal />
+      <ShareModal />
+      <SettingsModal />
+      <AddPanelModal />
     </div>
+  );
+}
+
+export function GrafanaDashboard() {
+  return (
+    <DashboardProvider>
+      <DashboardContent />
+    </DashboardProvider>
   );
 }
