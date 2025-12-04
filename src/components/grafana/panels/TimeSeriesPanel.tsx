@@ -1,4 +1,5 @@
-import { MoreVertical, Maximize2 } from "lucide-react";
+import { useState } from "react";
+import { MoreVertical, Maximize2, X, Edit2, Copy, Trash2, Eye, EyeOff, Download } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -9,6 +10,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface TimeSeriesPanelProps {
   title: string;
@@ -17,17 +20,85 @@ interface TimeSeriesPanelProps {
 }
 
 export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps) {
-  return (
-    <div className="grafana-panel h-full flex flex-col">
+  const [showMenu, setShowMenu] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
+
+  const toggleSeries = (key: string) => {
+    setHiddenSeries(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const handleEdit = () => {
+    toast.info("Opening panel editor...");
+    setShowMenu(false);
+  };
+
+  const handleDuplicate = () => {
+    toast.success("Panel duplicated");
+    setShowMenu(false);
+  };
+
+  const handleExport = () => {
+    toast.success("Panel data exported");
+    setShowMenu(false);
+  };
+
+  const handleRemove = () => {
+    toast.success("Panel removed");
+    setShowMenu(false);
+  };
+
+  const PanelContent = () => (
+    <div className={cn("grafana-panel h-full flex flex-col", isFullscreen && "fixed inset-4 z-50")}>
       <div className="grafana-panel-header">
         <h3 className="grafana-panel-title">{title}</h3>
         <div className="flex items-center gap-1">
-          <button className="p-1 rounded hover:bg-secondary/50 text-muted-foreground">
-            <Maximize2 size={14} />
+          <button 
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-1 rounded hover:bg-secondary/50 text-muted-foreground transition-colors"
+            title={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
+          >
+            {isFullscreen ? <X size={14} /> : <Maximize2 size={14} />}
           </button>
-          <button className="p-1 rounded hover:bg-secondary/50 text-muted-foreground">
-            <MoreVertical size={14} />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 rounded hover:bg-secondary/50 text-muted-foreground transition-colors"
+            >
+              <MoreVertical size={14} />
+            </button>
+            {showMenu && (
+              <div className="absolute top-full right-0 mt-1 w-40 bg-popover border border-border rounded-md shadow-lg z-50 py-1 animate-fade-in">
+                <button
+                  onClick={handleEdit}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                >
+                  <Edit2 size={14} /> Edit
+                </button>
+                <button
+                  onClick={handleDuplicate}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                >
+                  <Copy size={14} /> Duplicate
+                </button>
+                <button
+                  onClick={handleExport}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                >
+                  <Download size={14} /> Export CSV
+                </button>
+                <div className="my-1 border-t border-border" />
+                <button
+                  onClick={handleRemove}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash2 size={14} /> Remove
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="grafana-panel-content flex-1 min-h-0">
@@ -67,6 +138,7 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
             <Legend
               wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
               iconType="line"
+              onClick={(e) => toggleSeries(e.dataKey as string)}
             />
             {dataKeys.map((dk) => (
               <Area
@@ -77,6 +149,7 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
                 stroke={dk.color}
                 strokeWidth={2}
                 fill={`url(#gradient-${dk.key})`}
+                hide={hiddenSeries.includes(dk.key)}
               />
             ))}
           </AreaChart>
@@ -84,4 +157,15 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
       </div>
     </div>
   );
+
+  if (isFullscreen) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-background/90 z-40" onClick={() => setIsFullscreen(false)} />
+        <PanelContent />
+      </>
+    );
+  }
+
+  return <PanelContent />;
 }
