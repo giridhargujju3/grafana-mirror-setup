@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreVertical, Maximize2, X, Edit2, Copy, Trash2, Eye, EyeOff, Download } from "lucide-react";
+import { MoreVertical, Maximize2, X, Edit2, Copy, Trash2, Download } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -12,14 +12,17 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useDashboard } from "@/contexts/DashboardContext";
 
 interface TimeSeriesPanelProps {
+  panelId?: string;
   title: string;
   data: any[];
   dataKeys: { key: string; color: string; name: string }[];
 }
 
-export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps) {
+export function TimeSeriesPanel({ panelId, title, data, dataKeys }: TimeSeriesPanelProps) {
+  const { setEditingPanel, setShowPanelEditor, removePanel, duplicatePanel, panels, isEditMode } = useDashboard();
   const [showMenu, setShowMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
@@ -31,32 +34,64 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
   };
 
   const handleEdit = () => {
-    toast.info("Opening panel editor...");
+    if (panelId) {
+      const panel = panels.find(p => p.id === panelId);
+      if (panel) {
+        setEditingPanel(panel);
+        setShowPanelEditor(true);
+      }
+    }
     setShowMenu(false);
   };
 
   const handleDuplicate = () => {
-    toast.success("Panel duplicated");
+    if (panelId) {
+      duplicatePanel(panelId);
+      toast.success("Panel duplicated");
+    }
     setShowMenu(false);
   };
 
   const handleExport = () => {
+    const csvContent = [
+      ["Time", ...dataKeys.map(dk => dk.name)].join(","),
+      ...data.map(row => [row.time, ...dataKeys.map(dk => row[dk.key])].join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.toLowerCase().replace(/\s+/g, "-")}-export.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
     toast.success("Panel data exported");
     setShowMenu(false);
   };
 
   const handleRemove = () => {
-    toast.success("Panel removed");
+    if (panelId) {
+      removePanel(panelId);
+      toast.success("Panel removed");
+    }
     setShowMenu(false);
   };
 
   const PanelContent = () => (
-    <div className={cn("grafana-panel h-full flex flex-col", isFullscreen && "fixed inset-4 z-50")}>
+    <div className={cn(
+      "grafana-panel h-full flex flex-col", 
+      isFullscreen && "fixed inset-4 z-50",
+      isEditMode && "cursor-pointer hover:ring-2 hover:ring-primary/50"
+    )} onClick={isEditMode && !showMenu ? handleEdit : undefined}>
       <div className="grafana-panel-header">
         <h3 className="grafana-panel-title">{title}</h3>
         <div className="flex items-center gap-1">
           <button 
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFullscreen(!isFullscreen);
+            }}
             className="p-1 rounded hover:bg-secondary/50 text-muted-foreground transition-colors"
             title={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
           >
@@ -64,7 +99,10 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
           </button>
           <div className="relative">
             <button 
-              onClick={() => setShowMenu(!showMenu)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(!showMenu);
+              }}
               className="p-1 rounded hover:bg-secondary/50 text-muted-foreground transition-colors"
             >
               <MoreVertical size={14} />
@@ -72,26 +110,38 @@ export function TimeSeriesPanel({ title, data, dataKeys }: TimeSeriesPanelProps)
             {showMenu && (
               <div className="absolute top-full right-0 mt-1 w-40 bg-popover border border-border rounded-md shadow-lg z-50 py-1 animate-fade-in">
                 <button
-                  onClick={handleEdit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit();
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
                 >
                   <Edit2 size={14} /> Edit
                 </button>
                 <button
-                  onClick={handleDuplicate}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDuplicate();
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
                 >
                   <Copy size={14} /> Duplicate
                 </button>
                 <button
-                  onClick={handleExport}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleExport();
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
                 >
                   <Download size={14} /> Export CSV
                 </button>
                 <div className="my-1 border-t border-border" />
                 <button
-                  onClick={handleRemove}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemove();
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 size={14} /> Remove

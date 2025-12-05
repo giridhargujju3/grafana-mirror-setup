@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Plus,
   Clock,
@@ -12,6 +13,8 @@ import {
   Trash2,
   Edit,
   Eye,
+  Save,
+  X,
 } from "lucide-react";
 import { useDashboard } from "@/contexts/DashboardContext";
 import { cn } from "@/lib/utils";
@@ -54,14 +57,33 @@ export function GrafanaHeader() {
     isStarred,
     setIsStarred,
     dashboardTitle,
+    setDashboardTitle,
     setShowAddPanelModal,
     setShowShareModal,
     setShowSettingsModal,
+    isEditMode,
+    setIsEditMode,
+    panels,
   } = useDashboard();
 
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showRefreshDropdown, setShowRefreshDropdown] = useState(false);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(dashboardTitle);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('.dropdown-container')) {
+        setShowTimeDropdown(false);
+        setShowRefreshDropdown(false);
+        setShowMoreDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
 
   const handleStarToggle = () => {
     setIsStarred(!isStarred);
@@ -70,17 +92,14 @@ export function GrafanaHeader() {
 
   const handleShare = () => {
     setShowShareModal(true);
-    toast.info("Share modal opened");
   };
 
   const handleSettings = () => {
     setShowSettingsModal(true);
-    toast.info("Settings opened");
   };
 
   const handleAddPanel = () => {
     setShowAddPanelModal(true);
-    toast.info("Add panel dialog opened");
   };
 
   const handleRefreshClick = () => {
@@ -89,6 +108,21 @@ export function GrafanaHeader() {
   };
 
   const handleExport = () => {
+    const dashboardJson = JSON.stringify({
+      title: dashboardTitle,
+      panels,
+      time: { from: timeRange },
+      refresh: refreshInterval,
+    }, null, 2);
+    
+    const blob = new Blob([dashboardJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${dashboardTitle.toLowerCase().replace(/\s+/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
     toast.success("Dashboard exported as JSON");
     setShowMoreDropdown(false);
   };
@@ -99,8 +133,30 @@ export function GrafanaHeader() {
   };
 
   const handleViewJSON = () => {
-    toast.info("Viewing dashboard JSON");
+    const dashboardJson = JSON.stringify({
+      title: dashboardTitle,
+      panels,
+      time: { from: timeRange },
+      refresh: refreshInterval,
+    }, null, 2);
+    console.log(dashboardJson);
+    toast.info("Dashboard JSON logged to console");
     setShowMoreDropdown(false);
+  };
+
+  const handleTitleSave = () => {
+    setDashboardTitle(editedTitle);
+    setIsEditingTitle(false);
+    toast.success("Dashboard title updated");
+  };
+
+  const handleEditModeToggle = () => {
+    setIsEditMode(!isEditMode);
+    if (!isEditMode) {
+      toast.info("Edit mode enabled - you can now modify panels");
+    } else {
+      toast.success("Changes saved");
+    }
   };
 
   return (
@@ -121,15 +177,59 @@ export function GrafanaHeader() {
               )}
             />
           </button>
-          <h1 className="text-lg font-medium text-foreground">{dashboardTitle}</h1>
+          
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                className="px-2 py-1 bg-input border border-border rounded text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleTitleSave();
+                  if (e.key === 'Escape') setIsEditingTitle(false);
+                }}
+              />
+              <button onClick={handleTitleSave} className="p-1 text-primary hover:bg-secondary rounded">
+                <Save size={16} />
+              </button>
+              <button onClick={() => setIsEditingTitle(false)} className="p-1 text-muted-foreground hover:bg-secondary rounded">
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => {
+                setEditedTitle(dashboardTitle);
+                setIsEditingTitle(true);
+              }}
+              className="text-lg font-medium text-foreground hover:text-primary transition-colors"
+            >
+              {dashboardTitle}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span className="grafana-badge grafana-badge-success">Production</span>
+          {isEditMode && <span className="grafana-badge grafana-badge-warning">Editing</span>}
         </div>
       </div>
 
       {/* Right section */}
       <div className="flex items-center gap-2">
+        {/* Edit mode toggle */}
+        <button 
+          onClick={handleEditModeToggle}
+          className={cn(
+            "grafana-btn",
+            isEditMode ? "grafana-btn-primary" : "grafana-btn-secondary"
+          )}
+        >
+          {isEditMode ? <Save size={16} /> : <Edit size={16} />}
+          <span className="hidden sm:inline">{isEditMode ? "Save" : "Edit"}</span>
+        </button>
+
         {/* Add panel button */}
         <button 
           onClick={handleAddPanel}
@@ -140,9 +240,10 @@ export function GrafanaHeader() {
         </button>
 
         {/* Time range picker */}
-        <div className="relative">
+        <div className="relative dropdown-container">
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setShowTimeDropdown(!showTimeDropdown);
               setShowRefreshDropdown(false);
               setShowMoreDropdown(false);
@@ -154,7 +255,7 @@ export function GrafanaHeader() {
             <ChevronDown size={14} />
           </button>
           {showTimeDropdown && (
-            <div className="absolute top-full right-0 mt-1 w-56 bg-popover border border-border rounded-md shadow-lg z-50 py-1 animate-fade-in">
+            <div className="absolute top-full right-0 mt-1 w-56 bg-popover border border-border rounded-md shadow-lg z-50 py-1 animate-fade-in max-h-80 overflow-y-auto">
               <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Relative time ranges
               </div>
@@ -164,6 +265,7 @@ export function GrafanaHeader() {
                   onClick={() => {
                     setTimeRange(range);
                     setShowTimeDropdown(false);
+                    triggerRefresh();
                     toast.success(`Time range set to ${range}`);
                   }}
                   className={cn(
@@ -179,9 +281,10 @@ export function GrafanaHeader() {
         </div>
 
         {/* Refresh picker */}
-        <div className="relative">
+        <div className="relative dropdown-container">
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setShowRefreshDropdown(!showRefreshDropdown);
               setShowTimeDropdown(false);
               setShowMoreDropdown(false);
@@ -198,7 +301,10 @@ export function GrafanaHeader() {
           {showRefreshDropdown && (
             <div className="absolute top-full right-0 mt-1 w-32 bg-popover border border-border rounded-md shadow-lg z-50 py-1 animate-fade-in">
               <button
-                onClick={handleRefreshClick}
+                onClick={() => {
+                  handleRefreshClick();
+                  setShowRefreshDropdown(false);
+                }}
                 className="w-full px-3 py-2 text-sm text-left hover:bg-secondary transition-colors text-primary font-medium border-b border-border"
               >
                 Refresh now
@@ -248,9 +354,10 @@ export function GrafanaHeader() {
         </button>
 
         {/* More options */}
-        <div className="relative">
+        <div className="relative dropdown-container">
           <button 
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setShowMoreDropdown(!showMoreDropdown);
               setShowTimeDropdown(false);
               setShowRefreshDropdown(false);
@@ -301,5 +408,3 @@ export function GrafanaHeader() {
     </header>
   );
 }
-
-import { useState } from "react";

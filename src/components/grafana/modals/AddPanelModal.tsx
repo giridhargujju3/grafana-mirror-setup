@@ -1,27 +1,67 @@
-import { X, LineChart, BarChart3, Gauge, Table2, PieChart, MapPin, Text, AlertCircle } from "lucide-react";
-import { useDashboard } from "@/contexts/DashboardContext";
+import { X, LineChart, BarChart3, Gauge, Table2, PieChart, MapPin, Text, AlertCircle, FileText } from "lucide-react";
+import { useDashboard, PanelConfig } from "@/contexts/DashboardContext";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 const panelTypes = [
-  { icon: LineChart, name: "Time series", description: "Graph time series data" },
-  { icon: BarChart3, name: "Bar chart", description: "Categorical bar chart" },
-  { icon: Gauge, name: "Gauge", description: "Single value gauge" },
-  { icon: Table2, name: "Table", description: "Display data as a table" },
-  { icon: PieChart, name: "Pie chart", description: "Proportional data visualization" },
-  { icon: Text, name: "Stat", description: "Big number with optional sparkline" },
-  { icon: AlertCircle, name: "Alert list", description: "Show alert states" },
-  { icon: MapPin, name: "Geomap", description: "Geographic data visualization" },
+  { icon: LineChart, name: "Time series", type: "timeseries", description: "Graph time series data" },
+  { icon: BarChart3, name: "Bar chart", type: "barchart", description: "Categorical bar chart" },
+  { icon: Gauge, name: "Gauge", type: "gauge", description: "Single value gauge" },
+  { icon: Table2, name: "Table", type: "table", description: "Display data as a table" },
+  { icon: PieChart, name: "Pie chart", type: "piechart", description: "Proportional data visualization" },
+  { icon: Text, name: "Stat", type: "stat", description: "Big number with optional sparkline" },
+  { icon: AlertCircle, name: "Alert list", type: "alertlist", description: "Show alert states" },
+  { icon: FileText, name: "Logs", type: "logs", description: "Display log entries" },
 ];
 
 export function AddPanelModal() {
-  const { showAddPanelModal, setShowAddPanelModal } = useDashboard();
+  const { 
+    showAddPanelModal, 
+    setShowAddPanelModal, 
+    addPanel, 
+    panels,
+    setShowPanelEditor,
+    setEditingPanel 
+  } = useDashboard();
 
   if (!showAddPanelModal) return null;
 
-  const handleAddPanel = (panelType: string) => {
-    toast.success(`Added ${panelType} panel to dashboard`);
+  const handleAddPanel = (panelType: typeof panelTypes[0]) => {
+    // Calculate position for new panel
+    const maxY = panels.reduce((max, p) => Math.max(max, p.gridPos.y + p.gridPos.h), 0);
+    
+    const newPanel: PanelConfig = {
+      id: `panel-${Date.now()}`,
+      type: panelType.type as PanelConfig["type"],
+      title: `New ${panelType.name}`,
+      gridPos: { x: 0, y: maxY, w: 6, h: 4 },
+      options: {},
+      targets: [{ refId: "A", expr: "", datasource: "prometheus" }],
+    };
+    
+    addPanel(newPanel);
+    toast.success(`Added ${panelType.name} panel`);
     setShowAddPanelModal(false);
+    
+    // Open panel editor for the new panel
+    setEditingPanel(newPanel);
+    setShowPanelEditor(true);
+  };
+
+  const handleAddEmptyPanel = () => {
+    const maxY = panels.reduce((max, p) => Math.max(max, p.gridPos.y + p.gridPos.h), 0);
+    
+    const newPanel: PanelConfig = {
+      id: `panel-${Date.now()}`,
+      type: "timeseries",
+      title: "New Panel",
+      gridPos: { x: 0, y: maxY, w: 6, h: 4 },
+      options: {},
+      targets: [{ refId: "A", expr: "", datasource: "prometheus" }],
+    };
+    
+    setShowAddPanelModal(false);
+    setEditingPanel(newPanel);
+    setShowPanelEditor(true);
   };
 
   return (
@@ -55,7 +95,7 @@ export function AddPanelModal() {
             {panelTypes.map((panel) => (
               <button
                 key={panel.name}
-                onClick={() => handleAddPanel(panel.name)}
+                onClick={() => handleAddPanel(panel)}
                 className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-secondary/50 transition-all group"
               >
                 <div className="p-3 rounded-lg bg-secondary group-hover:bg-primary/20 transition-colors">
@@ -69,15 +109,21 @@ export function AddPanelModal() {
             ))}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-border">
+          <div className="mt-4 pt-4 border-t border-border flex gap-2">
+            <button
+              onClick={handleAddEmptyPanel}
+              className="flex-1 grafana-btn grafana-btn-secondary"
+            >
+              Add empty panel
+            </button>
             <button
               onClick={() => {
                 toast.info("Opening panel library...");
                 setShowAddPanelModal(false);
               }}
-              className="w-full grafana-btn grafana-btn-secondary"
+              className="flex-1 grafana-btn grafana-btn-secondary"
             >
-              Add panel from library
+              Add from library
             </button>
           </div>
         </div>
