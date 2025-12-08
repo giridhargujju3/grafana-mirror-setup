@@ -8,6 +8,7 @@ interface GaugePanelProps {
   max?: number;
   thresholds?: { value: number; color: string }[];
   unit?: string;
+  panelId?: string;
 }
 
 export function GaugePanel({

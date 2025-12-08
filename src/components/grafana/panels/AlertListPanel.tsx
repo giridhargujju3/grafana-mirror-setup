@@ -12,6 +12,7 @@ interface Alert {
 interface AlertListPanelProps {
   title: string;
   alerts: Alert[];
+  panelId?: string;
 }
 
 const stateConfig = {
