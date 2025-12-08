@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { GrafanaSidebar } from "./GrafanaSidebar";
 import { GrafanaHeader } from "./GrafanaHeader";
 import { SearchModal } from "./modals/SearchModal";
@@ -6,6 +6,8 @@ import { ShareModal } from "./modals/ShareModal";
 import { SettingsModal } from "./modals/SettingsModal";
 import { AddPanelModal } from "./modals/AddPanelModal";
 import { PanelEditorModal } from "./modals/PanelEditorModal";
+import { DataSourceSelector } from "./modals/DataSourceSelector";
+import { SaveDashboardModal } from "./modals/SaveDashboardModal";
 import { TimeSeriesPanel } from "./panels/TimeSeriesPanel";
 import { StatPanel } from "./panels/StatPanel";
 import { GaugePanel } from "./panels/GaugePanel";
@@ -13,6 +15,7 @@ import { BarChartPanel } from "./panels/BarChartPanel";
 import { TablePanel } from "./panels/TablePanel";
 import { AlertListPanel } from "./panels/AlertListPanel";
 import { LogsPanel } from "./panels/LogsPanel";
+import { PanelWrapper } from "./PanelWrapper";
 import { DashboardProvider, useDashboard, PanelConfig } from "@/contexts/DashboardContext";
 import { cn } from "@/lib/utils";
 
@@ -65,26 +68,6 @@ const generateLogs = (dataRefreshKey: number) => [
   { timestamp: "14:32:39", level: "warn" as const, message: "Rate limit approaching for IP 192.168.1.100", labels: { service: "gateway" } },
   { timestamp: "14:32:38", level: "info" as const, message: "Health check passed", labels: { service: "monitor" } },
 ];
-
-interface PanelWrapperProps {
-  panel: PanelConfig;
-  children: React.ReactNode;
-}
-
-function PanelWrapper({ panel, children }: PanelWrapperProps) {
-  const { isEditMode, setEditingPanel, setShowPanelEditor, removePanel, duplicatePanel } = useDashboard();
-  
-  return (
-    <div 
-      className={cn(
-        "h-full",
-        isEditMode && "ring-2 ring-transparent hover:ring-primary/50 cursor-move rounded-lg transition-all"
-      )}
-    >
-      {children}
-    </div>
-  );
-}
 
 function DashboardContent() {
   const { isRefreshing, panels, dataRefreshKey, isEditMode } = useDashboard();
@@ -178,14 +161,6 @@ function DashboardContent() {
     }
   };
 
-  // Group panels by row based on gridPos
-  const panelsByRow: Record<string, PanelConfig[]> = {};
-  panels.forEach(panel => {
-    const rowKey = `row-${panel.gridPos.y}`;
-    if (!panelsByRow[rowKey]) panelsByRow[rowKey] = [];
-    panelsByRow[rowKey].push(panel);
-  });
-
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <GrafanaSidebar />
@@ -193,14 +168,12 @@ function DashboardContent() {
         <GrafanaHeader />
         <main className={cn("flex-1 overflow-auto p-4", isRefreshing && "opacity-60 pointer-events-none")}>
           {isEditMode && (
-            <div className="mb-4 p-3 bg-grafana-yellow/10 border border-grafana-yellow/30 rounded-lg text-sm text-grafana-yellow">
-              Edit mode enabled. Click on panels to edit them or drag to reorder.
+            <div className="mb-4 p-3 bg-grafana-yellow/10 border border-grafana-yellow/30 rounded-lg text-sm text-grafana-yellow flex items-center justify-between">
+              <span>Edit mode enabled. Click on panels to edit, drag to reorder, or use the Add button to add new panels.</span>
             </div>
           )}
           <div className="grid grid-cols-12 gap-4 auto-rows-min">
-            {/* Render panels based on their grid positions */}
             {panels.map((panel) => {
-              const colSpan = `col-span-${panel.gridPos.w}`;
               const heightClass = panel.gridPos.h <= 2 ? "h-36" : panel.gridPos.h <= 3 ? "h-72" : "h-80";
               
               return (
@@ -232,6 +205,8 @@ function DashboardContent() {
       <SettingsModal />
       <AddPanelModal />
       <PanelEditorModal />
+      <DataSourceSelector />
+      <SaveDashboardModal />
     </div>
   );
 }
