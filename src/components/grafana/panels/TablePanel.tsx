@@ -12,6 +12,7 @@ interface TablePanelProps {
   title: string;
   columns: Column[];
   data: any[];
+  panelId?: string;
 }
 
 export function TablePanel({ title, columns, data }: TablePanelProps) {

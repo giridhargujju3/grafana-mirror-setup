@@ -15,6 +15,7 @@ interface BarChartPanelProps {
   data: any[];
   dataKeys: { key: string; color: string; name: string }[];
   layout?: "horizontal" | "vertical";
+  panelId?: string;
 }
 
 export function BarChartPanel({ title, data, dataKeys, layout = "vertical" }: BarChartPanelProps) {

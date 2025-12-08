@@ -11,6 +11,7 @@ interface LogEntry {
 interface LogsPanelProps {
   title: string;
   logs: LogEntry[];
+  panelId?: string;
 }
 
 const levelConfig = {

@@ -11,6 +11,7 @@ interface StatPanelProps {
   trendValue?: string;
   color?: "orange" | "blue" | "green" | "red" | "yellow" | "purple";
   sparklineData?: number[];
+  panelId?: string;
 }
 
 const colorMap = {
