@@ -7,12 +7,22 @@ export interface PanelConfig {
   gridPos: { x: number; y: number; w: number; h: number };
   options: Record<string, any>;
   targets?: QueryTarget[];
+  description?: string;
 }
 
 export interface QueryTarget {
   refId: string;
   expr: string;
   datasource: string;
+  queryMode?: "builder" | "code";
+  legendFormat?: string;
+}
+
+export interface DataSource {
+  id: string;
+  name: string;
+  type: "prometheus" | "loki" | "postgres" | "mysql" | "influxdb" | "elasticsearch" | "graphite" | "testdata";
+  isDefault?: boolean;
 }
 
 export interface Dashboard {
@@ -24,17 +34,31 @@ export interface Dashboard {
   time: { from: string; to: string };
   refresh: string;
   starred: boolean;
+  folderId?: string;
+  version: number;
+}
+
+export interface DashboardState {
+  isDirty: boolean;
+  isNew: boolean;
+  lastSaved?: Date;
+  originalPanels: PanelConfig[];
 }
 
 interface DashboardContextType {
+  // Time and refresh
   timeRange: string;
   setTimeRange: (range: string) => void;
   refreshInterval: string;
   setRefreshInterval: (interval: string) => void;
   isRefreshing: boolean;
   triggerRefresh: () => void;
+  
+  // Search
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  
+  // Modals
   showSearchModal: boolean;
   setShowSearchModal: (show: boolean) => void;
   showAddPanelModal: boolean;
@@ -45,28 +69,73 @@ interface DashboardContextType {
   setShowSettingsModal: (show: boolean) => void;
   showPanelEditor: boolean;
   setShowPanelEditor: (show: boolean) => void;
+  showDataSourceSelector: boolean;
+  setShowDataSourceSelector: (show: boolean) => void;
+  showSaveDashboardModal: boolean;
+  setShowSaveDashboardModal: (show: boolean) => void;
+  
+  // Panel editing
   editingPanel: PanelConfig | null;
   setEditingPanel: (panel: PanelConfig | null) => void;
+  
+  // Sidebar
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  
+  // Dashboard metadata
   dashboardTitle: string;
   setDashboardTitle: (title: string) => void;
   isStarred: boolean;
   setIsStarred: (starred: boolean) => void;
+  dashboardFolder: string;
+  setDashboardFolder: (folder: string) => void;
+  dashboardTags: string[];
+  setDashboardTags: (tags: string[]) => void;
+  
+  // Panels
   panels: PanelConfig[];
   setPanels: (panels: PanelConfig[]) => void;
   addPanel: (panel: PanelConfig) => void;
   updatePanel: (id: string, updates: Partial<PanelConfig>) => void;
   removePanel: (id: string) => void;
   duplicatePanel: (id: string) => void;
+  movePanel: (id: string, direction: "up" | "down" | "left" | "right") => void;
+  
+  // Edit mode
   isEditMode: boolean;
   setIsEditMode: (edit: boolean) => void;
+  
+  // Dashboard state
+  dashboardState: DashboardState;
+  setDashboardState: (state: DashboardState) => void;
+  markDirty: () => void;
+  saveDashboard: () => void;
+  discardChanges: () => void;
+  
+  // Data sources
+  dataSources: DataSource[];
+  selectedDataSource: DataSource | null;
+  setSelectedDataSource: (ds: DataSource | null) => void;
+  
+  // Variables
   variables: Record<string, string>;
   setVariables: (vars: Record<string, string>) => void;
+  
+  // Data refresh
   dataRefreshKey: number;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
+
+const defaultDataSources: DataSource[] = [
+  { id: "prometheus", name: "Prometheus", type: "prometheus", isDefault: true },
+  { id: "loki", name: "Loki", type: "loki" },
+  { id: "postgres", name: "PostgreSQL", type: "postgres" },
+  { id: "mysql", name: "MySQL", type: "mysql" },
+  { id: "influxdb", name: "InfluxDB", type: "influxdb" },
+  { id: "elasticsearch", name: "Elasticsearch", type: "elasticsearch" },
+  { id: "testdata", name: "TestData", type: "testdata" },
+];
 
 const defaultPanels: PanelConfig[] = [
   {
@@ -169,14 +238,26 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPanelEditor, setShowPanelEditor] = useState(false);
+  const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
+  const [showSaveDashboardModal, setShowSaveDashboardModal] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PanelConfig | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardTitle, setDashboardTitle] = useState("System Monitoring");
   const [isStarred, setIsStarred] = useState(false);
+  const [dashboardFolder, setDashboardFolder] = useState("General");
+  const [dashboardTags, setDashboardTags] = useState<string[]>(["monitoring", "system"]);
   const [panels, setPanels] = useState<PanelConfig[]>(defaultPanels);
   const [isEditMode, setIsEditMode] = useState(false);
   const [variables, setVariables] = useState<Record<string, string>>({ env: "production", region: "us-east-1" });
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(defaultDataSources[0]);
+  
+  const [dashboardState, setDashboardState] = useState<DashboardState>({
+    isDirty: false,
+    isNew: false,
+    originalPanels: defaultPanels,
+    lastSaved: new Date(),
+  });
 
   const triggerRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -209,17 +290,24 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [refreshInterval, triggerRefresh]);
 
+  const markDirty = useCallback(() => {
+    setDashboardState(prev => ({ ...prev, isDirty: true }));
+  }, []);
+
   const addPanel = useCallback((panel: PanelConfig) => {
     setPanels(prev => [...prev, panel]);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const updatePanel = useCallback((id: string, updates: Partial<PanelConfig>) => {
     setPanels(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const removePanel = useCallback((id: string) => {
     setPanels(prev => prev.filter(p => p.id !== id));
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const duplicatePanel = useCallback((id: string) => {
     setPanels(prev => {
@@ -233,7 +321,40 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       };
       return [...prev, newPanel];
     });
-  }, []);
+    markDirty();
+  }, [markDirty]);
+
+  const movePanel = useCallback((id: string, direction: "up" | "down" | "left" | "right") => {
+    setPanels(prev => {
+      return prev.map(panel => {
+        if (panel.id !== id) return panel;
+        const newGridPos = { ...panel.gridPos };
+        switch (direction) {
+          case "up": newGridPos.y = Math.max(0, newGridPos.y - 1); break;
+          case "down": newGridPos.y += 1; break;
+          case "left": newGridPos.x = Math.max(0, newGridPos.x - 1); break;
+          case "right": newGridPos.x = Math.min(11, newGridPos.x + 1); break;
+        }
+        return { ...panel, gridPos: newGridPos };
+      });
+    });
+    markDirty();
+  }, [markDirty]);
+
+  const saveDashboard = useCallback(() => {
+    setDashboardState(prev => ({
+      ...prev,
+      isDirty: false,
+      isNew: false,
+      originalPanels: [...panels],
+      lastSaved: new Date(),
+    }));
+  }, [panels]);
+
+  const discardChanges = useCallback(() => {
+    setPanels(dashboardState.originalPanels);
+    setDashboardState(prev => ({ ...prev, isDirty: false }));
+  }, [dashboardState.originalPanels]);
 
   return (
     <DashboardContext.Provider
@@ -256,6 +377,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setShowSettingsModal,
         showPanelEditor,
         setShowPanelEditor,
+        showDataSourceSelector,
+        setShowDataSourceSelector,
+        showSaveDashboardModal,
+        setShowSaveDashboardModal,
         editingPanel,
         setEditingPanel,
         sidebarCollapsed,
@@ -264,14 +389,27 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setDashboardTitle,
         isStarred,
         setIsStarred,
+        dashboardFolder,
+        setDashboardFolder,
+        dashboardTags,
+        setDashboardTags,
         panels,
         setPanels,
         addPanel,
         updatePanel,
         removePanel,
         duplicatePanel,
+        movePanel,
         isEditMode,
         setIsEditMode,
+        dashboardState,
+        setDashboardState,
+        markDirty,
+        saveDashboard,
+        discardChanges,
+        dataSources: defaultDataSources,
+        selectedDataSource,
+        setSelectedDataSource,
         variables,
         setVariables,
         dataRefreshKey,
