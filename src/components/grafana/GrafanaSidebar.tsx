@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from "@/contexts/DashboardContext";
+import { useDashboardRegistry } from "@/contexts/DashboardRegistryContext";
 import {
   Home,
   LayoutDashboard,
@@ -29,7 +30,6 @@ import {
   Plug,
   Package,
   Building,
-  UserCog,
   Key,
 } from "lucide-react";
 
@@ -37,70 +37,77 @@ interface SidebarItem {
   icon: React.ElementType;
   label: string;
   href?: string;
-  children?: { label: string; href: string; icon?: React.ElementType }[];
+  action?: () => void;
+  children?: { label: string; href?: string; action?: () => void; icon?: React.ElementType }[];
 }
-
-const menuItems: SidebarItem[] = [
-  { icon: Home, label: "Home", href: "/" },
-  { icon: Star, label: "Starred", href: "/starred" },
-  { 
-    icon: LayoutDashboard, 
-    label: "Dashboards", 
-    href: "/dashboards",
-    children: [
-      { label: "Browse", href: "/dashboards", icon: List },
-      { label: "Playlists", href: "/dashboards/playlists", icon: Play },
-      { label: "Snapshots", href: "/dashboards/snapshots", icon: Camera },
-      { label: "Library panels", href: "/dashboards/library", icon: Library },
-      { label: "New dashboard", href: "/dashboards/new", icon: LayoutDashboard },
-      { label: "New folder", href: "/dashboards/folder/new", icon: FolderPlus },
-      { label: "Import", href: "/dashboards/import", icon: FileUp },
-    ]
-  },
-  { icon: Compass, label: "Explore", href: "/explore" },
-  { 
-    icon: Bell, 
-    label: "Alerting",
-    href: "/alerting",
-    children: [
-      { label: "Alert rules", href: "/alerting/rules", icon: AlertTriangle },
-      { label: "Contact points", href: "/alerting/contacts", icon: Phone },
-      { label: "Notification policies", href: "/alerting/policies", icon: Shield },
-      { label: "Silences", href: "/alerting/silences", icon: Volume2 },
-      { label: "Alert groups", href: "/alerting/groups", icon: UsersIcon },
-    ]
-  },
-  { 
-    icon: Database, 
-    label: "Connections",
-    href: "/connections",
-    children: [
-      { label: "Data sources", href: "/connections/datasources", icon: Database },
-      { label: "Plugins", href: "/connections/plugins", icon: Plug },
-    ]
-  },
-];
-
-const adminItems: SidebarItem[] = [
-  { 
-    icon: Settings, 
-    label: "Administration",
-    href: "/admin",
-    children: [
-      { label: "General", href: "/admin/general", icon: Settings },
-      { label: "Plugins", href: "/admin/plugins", icon: Package },
-      { label: "Users", href: "/admin/users", icon: UsersIcon },
-      { label: "Teams", href: "/admin/teams", icon: Building },
-      { label: "Service accounts", href: "/admin/service-accounts", icon: Key },
-    ]
-  },
-];
 
 export function GrafanaSidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, setShowSearchModal } = useDashboard();
+  const { createNewDashboard } = useDashboardRegistry();
   const [expandedItems, setExpandedItems] = useState<string[]>(["Dashboards"]);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleNewDashboard = () => {
+    const newId = createNewDashboard();
+    navigate(`/dashboard/${newId}`);
+  };
+
+  const menuItems: SidebarItem[] = [
+    { icon: Home, label: "Home", href: "/" },
+    { icon: Star, label: "Starred", href: "/starred" },
+    { 
+      icon: LayoutDashboard, 
+      label: "Dashboards", 
+      href: "/dashboards",
+      children: [
+        { label: "Browse", href: "/dashboards", icon: List },
+        { label: "Playlists", href: "/dashboards/playlists", icon: Play },
+        { label: "Snapshots", href: "/dashboards/snapshots", icon: Camera },
+        { label: "Library panels", href: "/dashboards/library", icon: Library },
+        { label: "New dashboard", action: handleNewDashboard, icon: LayoutDashboard },
+        { label: "New folder", href: "/dashboards/folder/new", icon: FolderPlus },
+        { label: "Import", href: "/dashboards/import", icon: FileUp },
+      ]
+    },
+    { icon: Compass, label: "Explore", href: "/explore" },
+    { 
+      icon: Bell, 
+      label: "Alerting",
+      href: "/alerting",
+      children: [
+        { label: "Alert rules", href: "/alerting/rules", icon: AlertTriangle },
+        { label: "Contact points", href: "/alerting/contacts", icon: Phone },
+        { label: "Notification policies", href: "/alerting/policies", icon: Shield },
+        { label: "Silences", href: "/alerting/silences", icon: Volume2 },
+        { label: "Alert groups", href: "/alerting/groups", icon: UsersIcon },
+      ]
+    },
+    { 
+      icon: Database, 
+      label: "Connections",
+      href: "/connections",
+      children: [
+        { label: "Data sources", href: "/connections/datasources", icon: Database },
+        { label: "Plugins", href: "/connections/plugins", icon: Plug },
+      ]
+    },
+  ];
+
+  const adminItems: SidebarItem[] = [
+    { 
+      icon: Settings, 
+      label: "Administration",
+      href: "/admin",
+      children: [
+        { label: "General", href: "/admin/general", icon: Settings },
+        { label: "Plugins", href: "/admin/plugins", icon: Package },
+        { label: "Users", href: "/admin/users", icon: UsersIcon },
+        { label: "Teams", href: "/admin/teams", icon: Building },
+        { label: "Service accounts", href: "/admin/service-accounts", icon: Key },
+      ]
+    },
+  ];
 
   const toggleExpanded = (label: string) => {
     setExpandedItems(prev =>
@@ -116,7 +123,6 @@ export function GrafanaSidebar() {
     return location.pathname.startsWith(href);
   };
 
-  // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -134,6 +140,17 @@ export function GrafanaSidebar() {
     }
     if (item.href) {
       navigate(item.href);
+    }
+    if (item.action) {
+      item.action();
+    }
+  };
+
+  const handleChildClick = (child: { href?: string; action?: () => void }) => {
+    if (child.action) {
+      child.action();
+    } else if (child.href) {
+      navigate(child.href);
     }
   };
 
@@ -229,10 +246,10 @@ export function GrafanaSidebar() {
                   {item.children.map((child) => (
                     <li key={child.label}>
                       <button
-                        onClick={() => navigate(child.href)}
+                        onClick={() => handleChildClick(child)}
                         className={cn(
                           "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded transition-colors",
-                          location.pathname === child.href
+                          child.href && location.pathname === child.href
                             ? "text-primary bg-sidebar-accent/50"
                             : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
                         )}
@@ -283,10 +300,10 @@ export function GrafanaSidebar() {
                   {item.children.map((child) => (
                     <li key={child.label}>
                       <button
-                        onClick={() => navigate(child.href)}
+                        onClick={() => handleChildClick(child)}
                         className={cn(
                           "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded transition-colors",
-                          location.pathname === child.href
+                          child.href && location.pathname === child.href
                             ? "text-primary bg-sidebar-accent/50"
                             : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
                         )}
