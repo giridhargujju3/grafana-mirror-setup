@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDashboardRegistry } from "@/contexts/DashboardRegistryContext";
+import { useDashboardRegistry, DashboardEntry } from "@/contexts/DashboardRegistryContext";
 import { DashboardProvider } from "@/contexts/DashboardContext";
 import { GrafanaDashboard } from "@/components/grafana/GrafanaDashboard";
 import { UnsavedChangesModal } from "@/components/grafana/modals/UnsavedChangesModal";
@@ -11,7 +11,6 @@ export default function DashboardEditorPage() {
   const {
     createNewDashboard,
     openDashboard,
-    getActiveDashboard,
     getDashboard,
     hasUnsavedDraft,
     getUnsavedDraft,
@@ -20,20 +19,18 @@ export default function DashboardEditorPage() {
   } = useDashboardRegistry();
 
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const [currentDashboard, setCurrentDashboard] = useState<DashboardEntry | null>(null);
 
   useEffect(() => {
-    if (initialized) return;
-
     if (dashboardId) {
-      // Opening an existing dashboard
+      // Opening an existing dashboard by ID
       const dashboard = getDashboard(dashboardId);
       if (dashboard) {
         openDashboard(dashboardId);
+        setCurrentDashboard(dashboard);
       } else {
         // Dashboard not found, redirect to dashboards list
         navigate("/dashboards");
-        return;
       }
     } else {
       // Creating new dashboard OR opening existing draft
@@ -43,35 +40,47 @@ export default function DashboardEditorPage() {
         if (draft) {
           // Reuse existing draft instead of creating duplicate
           openDashboard(draft.id);
+          setCurrentDashboard(draft);
           navigate(`/dashboard/${draft.id}`, { replace: true });
         }
       } else {
         // Create new dashboard
         const newId = createNewDashboard();
+        const newDashboard = getDashboard(newId);
+        if (newDashboard) {
+          setCurrentDashboard(newDashboard);
+        }
         navigate(`/dashboard/${newId}`, { replace: true });
       }
     }
-    setInitialized(true);
-  }, [dashboardId, initialized]);
+  }, [dashboardId]);
 
-  const activeDashboard = getActiveDashboard();
+  // Update current dashboard when it changes in registry
+  useEffect(() => {
+    if (dashboardId) {
+      const dashboard = getDashboard(dashboardId);
+      if (dashboard) {
+        setCurrentDashboard(dashboard);
+      }
+    }
+  }, [dashboardId, getDashboard]);
 
   const handleSave = () => {
-    if (activeDashboard) {
-      saveDashboard(activeDashboard.id);
+    if (currentDashboard) {
+      saveDashboard(currentDashboard.id);
       setShowUnsavedModal(false);
     }
   };
 
   const handleDiscard = () => {
-    if (activeDashboard) {
-      discardDashboard(activeDashboard.id);
+    if (currentDashboard) {
+      discardDashboard(currentDashboard.id);
       setShowUnsavedModal(false);
       navigate("/dashboards");
     }
   };
 
-  if (!activeDashboard) {
+  if (!currentDashboard) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading dashboard...</div>
@@ -81,13 +90,13 @@ export default function DashboardEditorPage() {
 
   return (
     <DashboardProvider
-      key={activeDashboard.id}
-      initialTitle={activeDashboard.title}
-      initialFolder={activeDashboard.folder}
-      initialTags={activeDashboard.tags}
-      initialPanels={activeDashboard.panels}
-      isNewDashboard={activeDashboard.isNew}
-      dashboardId={activeDashboard.id}
+      key={currentDashboard.id}
+      initialTitle={currentDashboard.title}
+      initialFolder={currentDashboard.folder}
+      initialTags={currentDashboard.tags}
+      initialPanels={currentDashboard.panels}
+      isNewDashboard={currentDashboard.isNew}
+      dashboardId={currentDashboard.id}
     >
       <GrafanaDashboard />
       <UnsavedChangesModal
@@ -95,8 +104,8 @@ export default function DashboardEditorPage() {
         onClose={() => setShowUnsavedModal(false)}
         onDiscard={handleDiscard}
         onSave={handleSave}
-        dashboardTitle={activeDashboard.title}
-        isNew={activeDashboard.isNew}
+        dashboardTitle={currentDashboard.title}
+        isNew={currentDashboard.isNew}
       />
     </DashboardProvider>
   );
