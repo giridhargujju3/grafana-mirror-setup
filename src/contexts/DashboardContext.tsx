@@ -228,7 +228,25 @@ const defaultPanels: PanelConfig[] = [
   },
 ];
 
-export function DashboardProvider({ children }: { children: ReactNode }) {
+interface DashboardProviderProps {
+  children: ReactNode;
+  initialTitle?: string;
+  initialFolder?: string;
+  initialTags?: string[];
+  initialPanels?: PanelConfig[];
+  isNewDashboard?: boolean;
+  dashboardId?: string;
+}
+
+export function DashboardProvider({ 
+  children,
+  initialTitle = "New Dashboard",
+  initialFolder = "General",
+  initialTags = [],
+  initialPanels,
+  isNewDashboard = false,
+  dashboardId,
+}: DashboardProviderProps) {
   const [timeRange, setTimeRange] = useState("Last 6 hours");
   const [refreshInterval, setRefreshInterval] = useState("Off");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -242,21 +260,23 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [showSaveDashboardModal, setShowSaveDashboardModal] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PanelConfig | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [dashboardTitle, setDashboardTitle] = useState("System Monitoring");
+  const [dashboardTitle, setDashboardTitle] = useState(initialTitle);
   const [isStarred, setIsStarred] = useState(false);
-  const [dashboardFolder, setDashboardFolder] = useState("General");
-  const [dashboardTags, setDashboardTags] = useState<string[]>(["monitoring", "system"]);
-  const [panels, setPanels] = useState<PanelConfig[]>(defaultPanels);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [dashboardFolder, setDashboardFolder] = useState(initialFolder);
+  const [dashboardTags, setDashboardTags] = useState<string[]>(initialTags);
+  
+  // Use initialPanels if provided, otherwise use empty array for new dashboards or defaults
+  const [panels, setPanels] = useState<PanelConfig[]>(initialPanels || (isNewDashboard ? [] : defaultPanels));
+  const [isEditMode, setIsEditMode] = useState(isNewDashboard); // Auto-enter edit mode for new dashboards
   const [variables, setVariables] = useState<Record<string, string>>({ env: "production", region: "us-east-1" });
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(defaultDataSources[0]);
   
   const [dashboardState, setDashboardState] = useState<DashboardState>({
     isDirty: false,
-    isNew: false,
-    originalPanels: defaultPanels,
-    lastSaved: new Date(),
+    isNew: isNewDashboard,
+    originalPanels: initialPanels || (isNewDashboard ? [] : defaultPanels),
+    lastSaved: isNewDashboard ? undefined : new Date(),
   });
 
   const triggerRefresh = useCallback(() => {
