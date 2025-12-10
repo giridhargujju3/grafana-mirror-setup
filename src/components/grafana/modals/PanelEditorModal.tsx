@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   X, Play, ChevronDown, ChevronRight, Database, Plus, Trash2, Save, 
   ArrowLeft, Settings, Code, Layers, AlertTriangle, Eye, EyeOff,
@@ -7,6 +7,7 @@ import {
 import { useDashboard, PanelConfig, QueryTarget } from "@/contexts/DashboardContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { SQLQueryBuilder } from "../panels/SQLQueryBuilder";
 import {
   AreaChart,
   Area,
@@ -563,59 +564,68 @@ export function PanelEditorModal() {
                       {/* Query input */}
                       <div className="p-4 space-y-3">
                         {queries[activeQueryIndex].queryMode === "builder" ? (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-xs text-muted-foreground">Metric</label>
-                                <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                                  <option>cpu_usage</option>
-                                  <option>memory_usage</option>
-                                  <option>http_requests_total</option>
-                                  <option>node_cpu_seconds_total</option>
-                                </select>
+                          // Check if it's a SQL data source
+                          ["postgres", "mysql"].includes(queries[activeQueryIndex].datasource) ? (
+                            <SQLQueryBuilder
+                              datasource={queries[activeQueryIndex].datasource}
+                              value={queries[activeQueryIndex].expr}
+                              onChange={(query) => handleUpdateQuery(activeQueryIndex, "expr", query)}
+                            />
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Metric</label>
+                                  <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                    <option>cpu_usage</option>
+                                    <option>memory_usage</option>
+                                    <option>http_requests_total</option>
+                                    <option>node_cpu_seconds_total</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Label filters</label>
+                                  <input
+                                    type="text"
+                                    placeholder="job, instance, ..."
+                                    className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-1">
-                                <label className="text-xs text-muted-foreground">Label filters</label>
-                                <input
-                                  type="text"
-                                  placeholder="job, instance, ..."
-                                  className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                />
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Aggregation</label>
+                                  <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                    <option>None</option>
+                                    <option>sum</option>
+                                    <option>avg</option>
+                                    <option>max</option>
+                                    <option>min</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Range</label>
+                                  <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                    <option>$__rate_interval</option>
+                                    <option>1m</option>
+                                    <option>5m</option>
+                                    <option>15m</option>
+                                    <option>1h</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Resolution</label>
+                                  <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                    <option>1/1</option>
+                                    <option>1/2</option>
+                                    <option>1/3</option>
+                                    <option>1/5</option>
+                                    <option>1/10</option>
+                                  </select>
+                                </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-xs text-muted-foreground">Aggregation</label>
-                                <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                                  <option>None</option>
-                                  <option>sum</option>
-                                  <option>avg</option>
-                                  <option>max</option>
-                                  <option>min</option>
-                                </select>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-xs text-muted-foreground">Range</label>
-                                <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                                  <option>$__rate_interval</option>
-                                  <option>1m</option>
-                                  <option>5m</option>
-                                  <option>15m</option>
-                                  <option>1h</option>
-                                </select>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-xs text-muted-foreground">Resolution</label>
-                                <select className="w-full px-3 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                                  <option>1/1</option>
-                                  <option>1/2</option>
-                                  <option>1/3</option>
-                                  <option>1/5</option>
-                                  <option>1/10</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
+                          )
                         ) : (
                           <>
                             <div className="space-y-1">
