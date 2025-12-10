@@ -59,10 +59,10 @@ export function GrafanaHeader() {
     setIsStarred,
     dashboardTitle,
     setDashboardTitle,
-    setShowAddPanelModal,
     setShowShareModal,
     setShowSettingsModal,
     setShowSaveDashboardModal,
+    setShowDataSourceSelector,
     isEditMode,
     setIsEditMode,
     panels,
@@ -105,7 +105,8 @@ export function GrafanaHeader() {
   };
 
   const handleAddPanel = () => {
-    setShowAddPanelModal(true);
+    // Show data source selector first (Grafana workflow)
+    setShowDataSourceSelector(true);
   };
 
   const handleRefreshClick = () => {
