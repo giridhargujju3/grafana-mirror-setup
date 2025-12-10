@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { GrafanaSidebar } from "./GrafanaSidebar";
 import { GrafanaHeader } from "./GrafanaHeader";
 import { SearchModal } from "./modals/SearchModal";
@@ -71,7 +72,13 @@ const generateLogs = (dataRefreshKey: number) => [
 ];
 
 function DashboardContent() {
-  const { isRefreshing, panels, dataRefreshKey, isEditMode } = useDashboard();
+  const { isRefreshing, panels, dataRefreshKey, isEditMode, reorderPanels } = useDashboard();
+
+  const handleDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination) return;
+    if (result.source.index === result.destination.index) return;
+    reorderPanels(result.source.index, result.destination.index);
+  }, [reorderPanels]);
 
   const timeSeriesData = useMemo(() => generateTimeSeriesData(dataRefreshKey), [dataRefreshKey]);
   const alerts = useMemo(() => generateAlerts(dataRefreshKey), [dataRefreshKey]);
@@ -175,33 +182,56 @@ function DashboardContent() {
           <main className={cn("flex-1 overflow-auto p-4", isRefreshing && "opacity-60 pointer-events-none")}>
             {isEditMode && (
               <div className="mb-4 p-3 bg-grafana-yellow/10 border border-grafana-yellow/30 rounded-lg text-sm text-grafana-yellow flex items-center justify-between">
-                <span>Edit mode enabled. Click on panels to edit, drag to reorder, or use the Add button to add new panels.</span>
+                <span>Edit mode enabled. Drag panels to reorder, click to edit, or use the Add button to add new panels.</span>
               </div>
             )}
-            <div className="grid grid-cols-12 gap-4 auto-rows-min">
-              {panels.map((panel) => {
-                const heightClass = panel.gridPos.h <= 2 ? "h-36" : panel.gridPos.h <= 3 ? "h-72" : "h-80";
-                
-                return (
-                  <div 
-                    key={panel.id} 
-                    className={cn(
-                      "col-span-12",
-                      panel.gridPos.w <= 3 && "md:col-span-6 lg:col-span-3",
-                      panel.gridPos.w === 4 && "md:col-span-6 lg:col-span-4",
-                      panel.gridPos.w === 6 && "lg:col-span-6",
-                      panel.gridPos.w === 8 && "lg:col-span-8",
-                      panel.gridPos.w === 12 && "col-span-12",
-                      heightClass
-                    )}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="dashboard-panels" direction="vertical">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="grid grid-cols-12 gap-4 auto-rows-min"
                   >
-                    <PanelWrapper panel={panel}>
-                      {renderPanel(panel)}
-                    </PanelWrapper>
+                    {panels.map((panel, index) => {
+                      const heightClass = panel.gridPos.h <= 2 ? "h-36" : panel.gridPos.h <= 3 ? "h-72" : "h-80";
+                      
+                      return (
+                        <Draggable 
+                          key={panel.id} 
+                          draggableId={panel.id} 
+                          index={index}
+                          isDragDisabled={!isEditMode}
+                        >
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              className={cn(
+                                "col-span-12",
+                                panel.gridPos.w <= 3 && "md:col-span-6 lg:col-span-3",
+                                panel.gridPos.w === 4 && "md:col-span-6 lg:col-span-4",
+                                panel.gridPos.w === 6 && "lg:col-span-6",
+                                panel.gridPos.w === 8 && "lg:col-span-8",
+                                panel.gridPos.w === 12 && "col-span-12",
+                                heightClass,
+                                snapshot.isDragging && "ring-2 ring-primary shadow-lg z-50"
+                              )}
+                            >
+                              <PanelWrapper panel={panel}>
+                                {renderPanel(panel)}
+                              </PanelWrapper>
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           </main>
         )}
       </div>

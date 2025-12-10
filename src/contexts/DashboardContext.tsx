@@ -100,6 +100,7 @@ interface DashboardContextType {
   removePanel: (id: string) => void;
   duplicatePanel: (id: string) => void;
   movePanel: (id: string, direction: "up" | "down" | "left" | "right") => void;
+  reorderPanels: (startIndex: number, endIndex: number) => void;
   
   // Edit mode
   isEditMode: boolean;
@@ -361,6 +362,16 @@ export function DashboardProvider({
     markDirty();
   }, [markDirty]);
 
+  const reorderPanels = useCallback((startIndex: number, endIndex: number) => {
+    setPanels(prev => {
+      const result = Array.from(prev);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+      return result;
+    });
+    markDirty();
+  }, [markDirty]);
+
   const saveDashboard = useCallback(() => {
     setDashboardState(prev => ({
       ...prev,
@@ -420,6 +431,7 @@ export function DashboardProvider({
         removePanel,
         duplicatePanel,
         movePanel,
+        reorderPanels,
         isEditMode,
         setIsEditMode,
         dashboardState,
