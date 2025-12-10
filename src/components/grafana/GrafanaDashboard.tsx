@@ -16,6 +16,7 @@ import { TablePanel } from "./panels/TablePanel";
 import { AlertListPanel } from "./panels/AlertListPanel";
 import { LogsPanel } from "./panels/LogsPanel";
 import { PanelWrapper } from "./PanelWrapper";
+import { EmptyDashboardState } from "./EmptyDashboardState";
 import { DashboardProvider, useDashboard, PanelConfig } from "@/contexts/DashboardContext";
 import { cn } from "@/lib/utils";
 
@@ -166,37 +167,43 @@ function DashboardContent() {
       <GrafanaSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <GrafanaHeader />
-        <main className={cn("flex-1 overflow-auto p-4", isRefreshing && "opacity-60 pointer-events-none")}>
-          {isEditMode && (
-            <div className="mb-4 p-3 bg-grafana-yellow/10 border border-grafana-yellow/30 rounded-lg text-sm text-grafana-yellow flex items-center justify-between">
-              <span>Edit mode enabled. Click on panels to edit, drag to reorder, or use the Add button to add new panels.</span>
+        
+        {/* Show empty state when no panels exist */}
+        {panels.length === 0 ? (
+          <EmptyDashboardState />
+        ) : (
+          <main className={cn("flex-1 overflow-auto p-4", isRefreshing && "opacity-60 pointer-events-none")}>
+            {isEditMode && (
+              <div className="mb-4 p-3 bg-grafana-yellow/10 border border-grafana-yellow/30 rounded-lg text-sm text-grafana-yellow flex items-center justify-between">
+                <span>Edit mode enabled. Click on panels to edit, drag to reorder, or use the Add button to add new panels.</span>
+              </div>
+            )}
+            <div className="grid grid-cols-12 gap-4 auto-rows-min">
+              {panels.map((panel) => {
+                const heightClass = panel.gridPos.h <= 2 ? "h-36" : panel.gridPos.h <= 3 ? "h-72" : "h-80";
+                
+                return (
+                  <div 
+                    key={panel.id} 
+                    className={cn(
+                      "col-span-12",
+                      panel.gridPos.w <= 3 && "md:col-span-6 lg:col-span-3",
+                      panel.gridPos.w === 4 && "md:col-span-6 lg:col-span-4",
+                      panel.gridPos.w === 6 && "lg:col-span-6",
+                      panel.gridPos.w === 8 && "lg:col-span-8",
+                      panel.gridPos.w === 12 && "col-span-12",
+                      heightClass
+                    )}
+                  >
+                    <PanelWrapper panel={panel}>
+                      {renderPanel(panel)}
+                    </PanelWrapper>
+                  </div>
+                );
+              })}
             </div>
-          )}
-          <div className="grid grid-cols-12 gap-4 auto-rows-min">
-            {panels.map((panel) => {
-              const heightClass = panel.gridPos.h <= 2 ? "h-36" : panel.gridPos.h <= 3 ? "h-72" : "h-80";
-              
-              return (
-                <div 
-                  key={panel.id} 
-                  className={cn(
-                    "col-span-12",
-                    panel.gridPos.w <= 3 && "md:col-span-6 lg:col-span-3",
-                    panel.gridPos.w === 4 && "md:col-span-6 lg:col-span-4",
-                    panel.gridPos.w === 6 && "lg:col-span-6",
-                    panel.gridPos.w === 8 && "lg:col-span-8",
-                    panel.gridPos.w === 12 && "col-span-12",
-                    heightClass
-                  )}
-                >
-                  <PanelWrapper panel={panel}>
-                    {renderPanel(panel)}
-                  </PanelWrapper>
-                </div>
-              );
-            })}
-          </div>
-        </main>
+          </main>
+        )}
       </div>
       
       {/* Modals */}
@@ -211,6 +218,7 @@ function DashboardContent() {
   );
 }
 
+// Standalone dashboard with its own provider (for Index page)
 export function GrafanaDashboard() {
   return (
     <DashboardProvider>
@@ -218,3 +226,6 @@ export function GrafanaDashboard() {
     </DashboardProvider>
   );
 }
+
+// Export DashboardContent for use with external DashboardProvider (e.g., DashboardEditorPage)
+export { DashboardContent };

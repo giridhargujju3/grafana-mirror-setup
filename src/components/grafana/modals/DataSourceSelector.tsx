@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { X, Search, Database, Cloud, Server, Table2, Zap, Check } from "lucide-react";
-import { useDashboard, DataSource } from "@/contexts/DashboardContext";
+import { X, Search, Database, Cloud, Server, Table2, Zap, Check, Layers, LayoutDashboard, Sparkles } from "lucide-react";
+import { useDashboard, DataSource, PanelConfig } from "@/contexts/DashboardContext";
 import { cn } from "@/lib/utils";
 
 const dataSourceIcons: Record<string, React.ReactNode> = {
@@ -23,6 +23,13 @@ const dataSourceDescriptions: Record<string, string> = {
   testdata: "Generate test data for development",
 };
 
+// Special data sources shown on the right side
+const specialDataSources = [
+  { id: "mixed", name: "-- Mixed --", description: "Use multiple data sources", icon: Layers },
+  { id: "dashboard", name: "-- Dashboard --", description: "Reuse query results from other visualizations", icon: LayoutDashboard },
+  { id: "grafana", name: "-- Grafana --", description: "Discover visualizations using mock data", icon: Sparkles },
+];
+
 interface DataSourceSelectorProps {
   onSelect?: (ds: DataSource) => void;
   showAsPopup?: boolean;
@@ -34,118 +41,163 @@ export function DataSourceSelector({ onSelect, showAsPopup = false }: DataSource
     setShowDataSourceSelector, 
     dataSources,
     selectedDataSource,
-    setSelectedDataSource 
+    setSelectedDataSource,
+    setShowPanelEditor,
+    setEditingPanel,
+    addPanel,
+    panels,
   } = useDashboard();
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   if (!showDataSourceSelector && !showAsPopup) return null;
 
-  const categories = [
-    { id: "all", label: "All" },
-    { id: "time-series", label: "Time series" },
-    { id: "logging", label: "Logging" },
-    { id: "sql", label: "SQL" },
-  ];
-
-  const filteredDataSources = dataSources.filter(ds => {
-    const matchesSearch = ds.name.toLowerCase().includes(searchTerm.toLowerCase());
-    if (selectedCategory === "all") return matchesSearch;
-    if (selectedCategory === "time-series") return matchesSearch && ["prometheus", "influxdb"].includes(ds.type);
-    if (selectedCategory === "logging") return matchesSearch && ["loki", "elasticsearch"].includes(ds.type);
-    if (selectedCategory === "sql") return matchesSearch && ["postgres", "mysql"].includes(ds.type);
-    return matchesSearch;
-  });
+  const filteredDataSources = dataSources.filter(ds => 
+    ds.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSelect = (ds: DataSource) => {
     setSelectedDataSource(ds);
+    
+    // Create new panel with this data source and open panel editor
+    const maxY = panels.reduce((max, p) => Math.max(max, p.gridPos.y + p.gridPos.h), 0);
+    
+    const newPanel: PanelConfig = {
+      id: `panel-${Date.now()}`,
+      type: "timeseries",
+      title: "Panel Title",
+      gridPos: { x: 0, y: maxY, w: 12, h: 4 },
+      options: {},
+      targets: [{ 
+        refId: "A", 
+        expr: "", 
+        datasource: ds.id,
+        queryMode: "builder",
+        legendFormat: ""
+      }],
+    };
+    
     if (onSelect) onSelect(ds);
     setShowDataSourceSelector(false);
+    
+    // Open panel editor with the new panel (don't add to dashboard yet)
+    setEditingPanel(newPanel);
+    setShowPanelEditor(true);
+  };
+
+  const handleSpecialSelect = (specialDs: typeof specialDataSources[0]) => {
+    // For special sources, create panel with testdata source for now
+    const maxY = panels.reduce((max, p) => Math.max(max, p.gridPos.y + p.gridPos.h), 0);
+    
+    const newPanel: PanelConfig = {
+      id: `panel-${Date.now()}`,
+      type: "timeseries",
+      title: "Panel Title",
+      gridPos: { x: 0, y: maxY, w: 12, h: 4 },
+      options: {},
+      targets: [{ 
+        refId: "A", 
+        expr: "", 
+        datasource: specialDs.id,
+        queryMode: "builder",
+        legendFormat: ""
+      }],
+    };
+    
+    setShowDataSourceSelector(false);
+    setEditingPanel(newPanel);
+    setShowPanelEditor(true);
   };
 
   const content = (
-    <div className="w-full max-w-lg">
-      {/* Search */}
-      <div className="p-4 border-b border-border">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search data sources..."
-            className="w-full pl-9 pr-4 py-2 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            autoFocus
-          />
+    <div className="w-full max-w-4xl flex">
+      {/* Left side - Data sources list */}
+      <div className="flex-1 border-r border-border">
+        {/* Search */}
+        <div className="p-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Select data source"
+              className="w-full pl-9 pr-4 py-2.5 bg-input border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* Data sources list */}
+        <div className="max-h-80 overflow-y-auto px-2 pb-2">
+          {filteredDataSources.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No data sources found
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {filteredDataSources.map((ds) => (
+                <button
+                  key={ds.id}
+                  onClick={() => handleSelect(ds)}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left",
+                    selectedDataSource?.id === ds.id
+                      ? "bg-primary/10 border border-primary/30"
+                      : "hover:bg-secondary"
+                  )}
+                >
+                  <div className="w-8 h-8 rounded flex items-center justify-center bg-secondary">
+                    {dataSourceIcons[ds.type] || <Database size={20} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{ds.name}</span>
+                      {ds.isDefault && (
+                        <span className="text-xs px-1.5 py-0.5 bg-primary text-primary-foreground rounded">default</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground capitalize">{ds.type}</span>
+                  {selectedDataSource?.id === ds.id && (
+                    <Check size={16} className="text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="flex gap-2 p-4 border-b border-border">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setSelectedCategory(cat.id)}
-            className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-full transition-colors",
-              selectedCategory === cat.id
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            )}
-          >
-            {cat.label}
+      {/* Right side - Special data sources */}
+      <div className="w-72 p-4">
+        <div className="space-y-3">
+          {specialDataSources.map((special) => (
+            <button
+              key={special.id}
+              onClick={() => handleSpecialSelect(special)}
+              className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-secondary transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded flex items-center justify-center bg-secondary shrink-0">
+                <special.icon size={20} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-foreground text-sm">{special.name}</div>
+                <p className="text-xs text-muted-foreground mt-0.5">{special.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Configure new data source link */}
+        <div className="mt-8 pt-4 border-t border-border">
+          <p className="text-xs text-muted-foreground mb-2">
+            Open a new tab and configure a data source
+          </p>
+          <button className="w-full px-4 py-2 border border-border rounded text-sm font-medium hover:bg-secondary transition-colors">
+            Configure a new data source
           </button>
-        ))}
-      </div>
-
-      {/* Data sources list */}
-      <div className="max-h-80 overflow-y-auto p-2">
-        {filteredDataSources.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No data sources found
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {filteredDataSources.map((ds) => (
-              <button
-                key={ds.id}
-                onClick={() => handleSelect(ds)}
-                className={cn(
-                  "w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left",
-                  selectedDataSource?.id === ds.id
-                    ? "bg-primary/10 border border-primary/30"
-                    : "hover:bg-secondary"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                  {dataSourceIcons[ds.type] || <Database size={24} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">{ds.name}</span>
-                    {ds.isDefault && (
-                      <span className="text-xs px-1.5 py-0.5 bg-primary/20 text-primary rounded">default</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {dataSourceDescriptions[ds.type]}
-                  </p>
-                </div>
-                {selectedDataSource?.id === ds.id && (
-                  <Check size={18} className="text-primary" />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-border bg-secondary/30">
-        <p className="text-xs text-muted-foreground">
-          Tip: Configure data sources in <span className="text-primary cursor-pointer hover:underline">Connections → Data sources</span>
-        </p>
+        </div>
       </div>
     </div>
   );

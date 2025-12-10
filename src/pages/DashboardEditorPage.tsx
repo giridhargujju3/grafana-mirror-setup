@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDashboardRegistry, DashboardEntry } from "@/contexts/DashboardRegistryContext";
 import { DashboardProvider } from "@/contexts/DashboardContext";
-import { GrafanaDashboard } from "@/components/grafana/GrafanaDashboard";
+import { DashboardContent } from "@/components/grafana/GrafanaDashboard";
 import { UnsavedChangesModal } from "@/components/grafana/modals/UnsavedChangesModal";
 
 export default function DashboardEditorPage() {
@@ -98,7 +98,7 @@ export default function DashboardEditorPage() {
       isNewDashboard={currentDashboard.isNew}
       dashboardId={currentDashboard.id}
     >
-      <GrafanaDashboard />
+      <DashboardContent />
       <UnsavedChangesModal
         open={showUnsavedModal}
         onClose={() => setShowUnsavedModal(false)}
