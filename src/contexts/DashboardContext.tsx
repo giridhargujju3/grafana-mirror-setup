@@ -18,6 +18,26 @@ export interface QueryTarget {
   legendFormat?: string;
 }
 
+export interface VariableOption {
+  text: string;
+  value: string;
+  selected?: boolean;
+}
+
+export interface DashboardVariable {
+  name: string;
+  label: string;
+  type: "custom" | "query" | "datasource" | "interval" | "textbox" | "constant";
+  current: string | string[];
+  options: VariableOption[];
+  query?: string;
+  datasource?: string;
+  multi?: boolean;
+  includeAll?: boolean;
+  allValue?: string;
+  refresh?: "never" | "load" | "time";
+}
+
 export interface DataSource {
   id: string;
   name: string;
@@ -118,9 +138,17 @@ interface DashboardContextType {
   selectedDataSource: DataSource | null;
   setSelectedDataSource: (ds: DataSource | null) => void;
   
-  // Variables
+  // Variables (legacy)
   variables: Record<string, string>;
   setVariables: (vars: Record<string, string>) => void;
+  
+  // Dashboard Variables (new templating system)
+  dashboardVariables: DashboardVariable[];
+  setDashboardVariables: (vars: DashboardVariable[]) => void;
+  variableValues: Record<string, string | string[]>;
+  setVariableValue: (name: string, value: string | string[]) => void;
+  showVariablesModal: boolean;
+  setShowVariablesModal: (show: boolean) => void;
   
   // Data refresh
   dataRefreshKey: number;
@@ -272,6 +300,49 @@ export function DashboardProvider({
   const [variables, setVariables] = useState<Record<string, string>>({ env: "production", region: "us-east-1" });
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(defaultDataSources[0]);
+  const [showVariablesModal, setShowVariablesModal] = useState(false);
+  
+  // Dashboard Variables (templating system)
+  const [dashboardVariables, setDashboardVariables] = useState<DashboardVariable[]>([
+    {
+      name: "environment",
+      label: "Environment",
+      type: "custom",
+      current: "production",
+      options: [
+        { text: "Production", value: "production", selected: true },
+        { text: "Staging", value: "staging" },
+        { text: "Development", value: "development" },
+      ],
+      multi: false,
+      includeAll: false,
+    },
+    {
+      name: "region",
+      label: "Region",
+      type: "custom",
+      current: "us-east-1",
+      options: [
+        { text: "US East 1", value: "us-east-1", selected: true },
+        { text: "US West 2", value: "us-west-2" },
+        { text: "EU West 1", value: "eu-west-1" },
+        { text: "AP Southeast 1", value: "ap-southeast-1" },
+      ],
+      multi: false,
+      includeAll: true,
+    },
+  ]);
+  
+  const [variableValues, setVariableValues] = useState<Record<string, string | string[]>>({
+    environment: "production",
+    region: "us-east-1",
+  });
+  
+  const setVariableValue = useCallback((name: string, value: string | string[]) => {
+    setVariableValues(prev => ({ ...prev, [name]: value }));
+    // Trigger data refresh when variables change
+    setDataRefreshKey(prev => prev + 1);
+  }, []);
   
   const [dashboardState, setDashboardState] = useState<DashboardState>({
     isDirty: false,
@@ -444,6 +515,12 @@ export function DashboardProvider({
         setSelectedDataSource,
         variables,
         setVariables,
+        dashboardVariables,
+        setDashboardVariables,
+        variableValues,
+        setVariableValue,
+        showVariablesModal,
+        setShowVariablesModal,
         dataRefreshKey,
       }}
     >
