@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from "@/contexts/DashboardContext";
-import { useDashboardRegistry } from "@/contexts/DashboardRegistryContext";
+import { useDashboardRegistry, DashboardFolder } from "@/contexts/DashboardRegistryContext";
+import { FolderModal } from "./modals/FolderModal";
+import { MoveDashboardModal } from "./modals/MoveDashboardModal";
 import {
   Home,
   LayoutDashboard,
@@ -31,7 +33,18 @@ import {
   Package,
   Building,
   Key,
+  Folder,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  ArrowRight,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SidebarItem {
   icon: React.ElementType;
@@ -43,8 +56,13 @@ interface SidebarItem {
 
 export function GrafanaSidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, setShowSearchModal } = useDashboard();
-  const { createNewDashboard } = useDashboardRegistry();
+  const { createNewDashboard, folders, dashboards, getDashboardsInFolder, deleteFolder } = useDashboardRegistry();
   const [expandedItems, setExpandedItems] = useState<string[]>(["Dashboards"]);
+  const [expandedFolders, setExpandedFolders] = useState<string[]>([]);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<DashboardFolder | null>(null);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [movingDashboard, setMovingDashboard] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -52,6 +70,35 @@ export function GrafanaSidebar() {
     const newId = createNewDashboard();
     navigate(`/dashboard/${newId}`);
   };
+
+  const handleNewFolder = () => {
+    setEditingFolder(null);
+    setShowFolderModal(true);
+  };
+
+  const handleEditFolder = (folder: DashboardFolder) => {
+    setEditingFolder(folder);
+    setShowFolderModal(true);
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    deleteFolder(folderId);
+  };
+
+  const handleMoveDashboard = (dashboard: any) => {
+    setMovingDashboard(dashboard);
+    setShowMoveModal(true);
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev =>
+      prev.includes(folderId)
+        ? prev.filter(id => id !== folderId)
+        : [...prev, folderId]
+    );
+  };
+
+  const generalDashboards = getDashboardsInFolder(null);
 
   const menuItems: SidebarItem[] = [
     { icon: Home, label: "Home", href: "/" },
@@ -66,7 +113,7 @@ export function GrafanaSidebar() {
         { label: "Snapshots", href: "/dashboards/snapshots", icon: Camera },
         { label: "Library panels", href: "/dashboards/library", icon: Library },
         { label: "New dashboard", action: handleNewDashboard, icon: LayoutDashboard },
-        { label: "New folder", href: "/dashboards/folder/new", icon: FolderPlus },
+        { label: "New folder", action: handleNewFolder, icon: FolderPlus },
         { label: "Import", href: "/dashboards/import", icon: FileUp },
       ]
     },
@@ -259,6 +306,137 @@ export function GrafanaSidebar() {
                       </button>
                     </li>
                   ))}
+
+                  {/* Folders section when Dashboards is expanded */}
+                  {item.label === "Dashboards" && (
+                    <>
+                      <li className="pt-2">
+                        <span className="text-xs text-muted-foreground px-3">FOLDERS</span>
+                      </li>
+                      
+                      {/* General folder (root) */}
+                      <li>
+                        <div className="flex items-center group">
+                          <button
+                            onClick={() => toggleFolder("general")}
+                            className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm rounded-l transition-colors text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+                          >
+                            <Folder size={14} />
+                            <span>General</span>
+                            <ChevronRight
+                              size={12}
+                              className={cn(
+                                "ml-auto transition-transform",
+                                expandedFolders.includes("general") && "rotate-90"
+                              )}
+                            />
+                          </button>
+                        </div>
+                        {expandedFolders.includes("general") && generalDashboards.length > 0 && (
+                          <ul className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-2">
+                            {generalDashboards.map((dash) => (
+                              <li key={dash.id} className="flex items-center group">
+                                <button
+                                  onClick={() => navigate(`/dashboard/${dash.id}`)}
+                                  className="flex-1 flex items-center gap-2 px-2 py-1 text-xs rounded-l transition-colors text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50 truncate"
+                                >
+                                  <LayoutDashboard size={12} />
+                                  <span className="truncate">{dash.title}</span>
+                                </button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="p-1 opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent rounded transition-all">
+                                      <MoreVertical size={12} />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="bg-popover border-border z-50" align="end">
+                                    <DropdownMenuItem onClick={() => handleMoveDashboard(dash)}>
+                                      <ArrowRight size={14} className="mr-2" />
+                                      Move to folder
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+
+                      {/* Custom folders */}
+                      {folders.map((folder) => {
+                        const folderDashboards = getDashboardsInFolder(folder.id);
+                        return (
+                          <li key={folder.id}>
+                            <div className="flex items-center group">
+                              <button
+                                onClick={() => toggleFolder(folder.id)}
+                                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm rounded-l transition-colors text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+                              >
+                                <Folder size={14} />
+                                <span className="truncate">{folder.title}</span>
+                                <span className="text-xs text-muted-foreground ml-1">({folderDashboards.length})</span>
+                                <ChevronRight
+                                  size={12}
+                                  className={cn(
+                                    "ml-auto transition-transform",
+                                    expandedFolders.includes(folder.id) && "rotate-90"
+                                  )}
+                                />
+                              </button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-1 opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent rounded transition-all">
+                                    <MoreVertical size={14} />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-popover border-border z-50" align="end">
+                                  <DropdownMenuItem onClick={() => handleEditFolder(folder)}>
+                                    <Pencil size={14} className="mr-2" />
+                                    Rename
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteFolder(folder.id)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 size={14} className="mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            {expandedFolders.includes(folder.id) && folderDashboards.length > 0 && (
+                              <ul className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-2">
+                                {folderDashboards.map((dash) => (
+                                  <li key={dash.id} className="flex items-center group">
+                                    <button
+                                      onClick={() => navigate(`/dashboard/${dash.id}`)}
+                                      className="flex-1 flex items-center gap-2 px-2 py-1 text-xs rounded-l transition-colors text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50 truncate"
+                                    >
+                                      <LayoutDashboard size={12} />
+                                      <span className="truncate">{dash.title}</span>
+                                    </button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button className="p-1 opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent rounded transition-all">
+                                          <MoreVertical size={12} />
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent className="bg-popover border-border z-50" align="end">
+                                        <DropdownMenuItem onClick={() => handleMoveDashboard(dash)}>
+                                          <ArrowRight size={14} className="mr-2" />
+                                          Move to folder
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </>
+                  )}
                 </ul>
               )}
             </li>
@@ -339,6 +517,18 @@ export function GrafanaSidebar() {
           {!sidebarCollapsed && <span>Admin</span>}
         </button>
       </div>
+
+      {/* Modals */}
+      <FolderModal 
+        isOpen={showFolderModal} 
+        onClose={() => setShowFolderModal(false)} 
+        editingFolder={editingFolder}
+      />
+      <MoveDashboardModal 
+        isOpen={showMoveModal} 
+        onClose={() => setShowMoveModal(false)} 
+        dashboard={movingDashboard}
+      />
     </aside>
   );
 }
