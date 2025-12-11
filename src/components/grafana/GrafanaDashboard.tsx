@@ -2,6 +2,7 @@ import { useMemo, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { GrafanaSidebar } from "./GrafanaSidebar";
 import { GrafanaHeader } from "./GrafanaHeader";
+import { VariablesBar } from "./VariablesBar";
 import { SearchModal } from "./modals/SearchModal";
 import { ShareModal } from "./modals/ShareModal";
 import { SettingsModal } from "./modals/SettingsModal";
@@ -9,6 +10,7 @@ import { AddPanelModal } from "./modals/AddPanelModal";
 import { PanelEditorModal } from "./modals/PanelEditorModal";
 import { DataSourceSelector } from "./modals/DataSourceSelector";
 import { SaveDashboardModal } from "./modals/SaveDashboardModal";
+import { VariablesModal } from "./modals/VariablesModal";
 import { TimeSeriesPanel } from "./panels/TimeSeriesPanel";
 import { StatPanel } from "./panels/StatPanel";
 import { GaugePanel } from "./panels/GaugePanel";
@@ -174,6 +176,7 @@ function DashboardContent() {
       <GrafanaSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <GrafanaHeader />
+        <VariablesBar />
         
         {/* Show empty state when no panels exist */}
         {panels.length === 0 ? (
@@ -244,6 +247,7 @@ function DashboardContent() {
       <PanelEditorModal />
       <DataSourceSelector />
       <SaveDashboardModal />
+      <VariablesModal />
     </div>
   );
 }
