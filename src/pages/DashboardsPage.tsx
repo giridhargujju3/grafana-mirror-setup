@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { GrafanaSidebar } from "@/components/grafana/GrafanaSidebar";
 import { SearchModal } from "@/components/grafana/modals/SearchModal";
+import { FolderModal } from "@/components/grafana/modals/FolderModal";
 import { DashboardProvider } from "@/contexts/DashboardContext";
 import { useDashboardRegistry } from "@/contexts/DashboardRegistryContext";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +11,7 @@ import { formatDistanceToNow } from "date-fns";
 function DashboardsContent() {
   const navigate = useNavigate();
   const { dashboards, createNewDashboard, deleteDashboard } = useDashboardRegistry();
+  const [showFolderModal, setShowFolderModal] = useState(false);
 
   const starredDashboards = dashboards.filter(d => d.starred && !d.isNew);
   const recentDashboards = dashboards
@@ -39,7 +42,10 @@ function DashboardsContent() {
               <Plus size={16} />
               New Dashboard
             </button>
-            <button className="grafana-btn grafana-btn-secondary">
+            <button 
+              onClick={() => setShowFolderModal(true)}
+              className="grafana-btn grafana-btn-secondary"
+            >
               <FolderPlus size={16} />
               New Folder
             </button>
@@ -177,6 +183,7 @@ function DashboardsContent() {
         </main>
       </div>
       <SearchModal />
+      <FolderModal isOpen={showFolderModal} onClose={() => setShowFolderModal(false)} />
     </div>
   );
 }

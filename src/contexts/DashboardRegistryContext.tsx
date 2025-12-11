@@ -1,33 +1,52 @@
 import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 import { PanelConfig, DashboardState } from "./DashboardContext";
 
+export interface DashboardFolder {
+  id: string;
+  uid: string;
+  title: string;
+  parentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface DashboardEntry {
   id: string;
   uid: string;
   title: string;
   tags: string[];
-  folder: string;
+  folderId: string | null; // null means root/General
+  folder: string; // Display name for backwards compatibility
   panels: PanelConfig[];
   time: { from: string; to: string };
   refresh: string;
   starred: boolean;
   version: number;
-  isNew: boolean; // Unsaved new dashboard
-  isDirty: boolean; // Has unsaved changes
+  isNew: boolean;
+  isDirty: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
 interface DashboardRegistryContextType {
   dashboards: DashboardEntry[];
+  folders: DashboardFolder[];
   activeDashboardId: string | null;
   
   // Dashboard CRUD
-  createNewDashboard: () => string; // Returns the new dashboard ID
+  createNewDashboard: () => string;
   openDashboard: (id: string) => void;
   saveDashboard: (id: string, title?: string, folder?: string, tags?: string[]) => void;
   discardDashboard: (id: string) => void;
   deleteDashboard: (id: string) => void;
+  moveDashboard: (dashboardId: string, folderId: string | null) => void;
+  
+  // Folder CRUD
+  createFolder: (title: string, parentId?: string | null) => string;
+  renameFolder: (id: string, title: string) => void;
+  deleteFolder: (id: string) => void;
+  getFolder: (id: string) => DashboardFolder | null;
+  getDashboardsInFolder: (folderId: string | null) => DashboardEntry[];
   
   // Get dashboard
   getActiveDashboard: () => DashboardEntry | null;
@@ -44,6 +63,26 @@ interface DashboardRegistryContextType {
 
 const DashboardRegistryContext = createContext<DashboardRegistryContextType | undefined>(undefined);
 
+// Initial folders
+const initialFolders: DashboardFolder[] = [
+  {
+    id: "folder-infrastructure",
+    uid: "inf-001",
+    title: "Infrastructure",
+    parentId: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+  },
+  {
+    id: "folder-applications",
+    uid: "app-001",
+    title: "Applications",
+    parentId: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+  },
+];
+
 // Sample saved dashboards
 const initialDashboards: DashboardEntry[] = [
   {
@@ -51,6 +90,7 @@ const initialDashboards: DashboardEntry[] = [
     uid: "sys-mon-001",
     title: "System Monitoring",
     tags: ["monitoring", "system"],
+    folderId: null,
     folder: "General",
     panels: [],
     time: { from: "now-6h", to: "now" },
@@ -67,6 +107,7 @@ const initialDashboards: DashboardEntry[] = [
     uid: "net-ovr-001",
     title: "Network Overview",
     tags: ["network", "infrastructure"],
+    folderId: "folder-infrastructure",
     folder: "Infrastructure",
     panels: [],
     time: { from: "now-1h", to: "now" },
@@ -82,10 +123,12 @@ const initialDashboards: DashboardEntry[] = [
 
 export function DashboardRegistryProvider({ children }: { children: ReactNode }) {
   const [dashboards, setDashboards] = useState<DashboardEntry[]>(initialDashboards);
+  const [folders, setFolders] = useState<DashboardFolder[]>(initialFolders);
   const [activeDashboardId, setActiveDashboardId] = useState<string | null>(null);
 
   const generateId = () => `dashboard-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const generateUid = () => `d${Math.random().toString(36).substr(2, 8)}`;
+  const generateFolderId = () => `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   const hasUnsavedDraft = useCallback(() => {
     return dashboards.some(d => d.isNew);
@@ -96,20 +139,19 @@ export function DashboardRegistryProvider({ children }: { children: ReactNode })
   }, [dashboards]);
 
   const createNewDashboard = useCallback(() => {
-    // Check if there's already an unsaved "New Dashboard" - return that one instead
     const existingDraft = dashboards.find(d => d.isNew);
     if (existingDraft) {
       setActiveDashboardId(existingDraft.id);
       return existingDraft.id;
     }
 
-    // Create new draft dashboard
     const newId = generateId();
     const newDashboard: DashboardEntry = {
       id: newId,
       uid: generateUid(),
       title: "New Dashboard",
       tags: [],
+      folderId: null,
       folder: "General",
       panels: [],
       time: { from: "now-6h", to: "now" },
@@ -152,13 +194,11 @@ export function DashboardRegistryProvider({ children }: { children: ReactNode })
     if (!dashboard) return;
 
     if (dashboard.isNew) {
-      // Remove unsaved new dashboard completely
       setDashboards(prev => prev.filter(d => d.id !== id));
       if (activeDashboardId === id) {
         setActiveDashboardId(null);
       }
     } else {
-      // Reset dirty state (in real app, would reload from server)
       setDashboards(prev => prev.map(d => 
         d.id === id ? { ...d, isDirty: false } : d
       ));
@@ -171,6 +211,62 @@ export function DashboardRegistryProvider({ children }: { children: ReactNode })
       setActiveDashboardId(null);
     }
   }, [activeDashboardId]);
+
+  const moveDashboard = useCallback((dashboardId: string, folderId: string | null) => {
+    setDashboards(prev => prev.map(d => {
+      if (d.id !== dashboardId) return d;
+      const folderName = folderId 
+        ? folders.find(f => f.id === folderId)?.title || "General"
+        : "General";
+      return {
+        ...d,
+        folderId,
+        folder: folderName,
+        updatedAt: new Date(),
+      };
+    }));
+  }, [folders]);
+
+  // Folder CRUD
+  const createFolder = useCallback((title: string, parentId: string | null = null) => {
+    const newId = generateFolderId();
+    const newFolder: DashboardFolder = {
+      id: newId,
+      uid: generateUid(),
+      title,
+      parentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setFolders(prev => [...prev, newFolder]);
+    return newId;
+  }, []);
+
+  const renameFolder = useCallback((id: string, title: string) => {
+    setFolders(prev => prev.map(f => 
+      f.id === id ? { ...f, title, updatedAt: new Date() } : f
+    ));
+    // Update dashboard folder names
+    setDashboards(prev => prev.map(d => 
+      d.folderId === id ? { ...d, folder: title } : d
+    ));
+  }, []);
+
+  const deleteFolder = useCallback((id: string) => {
+    // Move dashboards from deleted folder to General
+    setDashboards(prev => prev.map(d => 
+      d.folderId === id ? { ...d, folderId: null, folder: "General" } : d
+    ));
+    setFolders(prev => prev.filter(f => f.id !== id));
+  }, []);
+
+  const getFolder = useCallback((id: string) => {
+    return folders.find(f => f.id === id) || null;
+  }, [folders]);
+
+  const getDashboardsInFolder = useCallback((folderId: string | null) => {
+    return dashboards.filter(d => d.folderId === folderId);
+  }, [dashboards]);
 
   const getActiveDashboard = useCallback(() => {
     if (!activeDashboardId) return null;
@@ -197,12 +293,19 @@ export function DashboardRegistryProvider({ children }: { children: ReactNode })
     <DashboardRegistryContext.Provider
       value={{
         dashboards,
+        folders,
         activeDashboardId,
         createNewDashboard,
         openDashboard,
         saveDashboard,
         discardDashboard,
         deleteDashboard,
+        moveDashboard,
+        createFolder,
+        renameFolder,
+        deleteFolder,
+        getFolder,
+        getDashboardsInFolder,
         getActiveDashboard,
         getDashboard,
         updateDashboardPanels,
